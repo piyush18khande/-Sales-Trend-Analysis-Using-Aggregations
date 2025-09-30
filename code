@@ -1,1 +1,79 @@
+-- ==========================================
+-- STEP 1: Inspect the data
+-- ==========================================
+SELECT * 
+FROM online_sales 
+LIMIT 10;
+
+-- Count rows and check date range
+SELECT 
+    COUNT(*) AS total_rows,
+    MIN(Date) AS min_date,
+    MAX(Date) AS max_date
+FROM online_sales;
+
+
+
+
+-- ==========================================
+-- STEP 2: Ensure Date is usable
+-- If "Date" column is already DATE type, 
+-- we can use it directly. Otherwise CAST.
+-- ==========================================
+-- Just alias it for clarity
+ALTER TABLE online_sales 
+    ADD COLUMN IF NOT EXISTS order_date DATE;
+
+UPDATE online_sales
+SET order_date = Date::date
+WHERE order_date IS NULL AND Date IS NOT NULL;
+
+
+
+
+-- ==========================================
+-- STEP 3: Monthly Aggregation (main query)
+-- ==========================================
+SELECT
+    EXTRACT(YEAR FROM order_date)  AS year,
+    EXTRACT(MONTH FROM order_date) AS month,
+    DATE_TRUNC('month', order_date)::date AS month_start,
+    SUM(COALESCE(TotalPrice, UnitPrice * Quantity, 0)) AS monthly_revenue,
+    COUNT(DISTINCT OrderID) AS order_volume
+FROM online_sales
+WHERE order_date IS NOT NULL
+GROUP BY year, month, month_start
+ORDER BY year, month;
+
+
+
+-- ==========================================
+-- STEP 4: Top 3 Months by Revenue
+-- ==========================================
+WITH monthly AS (
+    SELECT
+        DATE_TRUNC('month', order_date)::date AS month_start,
+        SUM(COALESCE(TotalPrice, UnitPrice * Quantity, 0)) AS monthly_revenue
+    FROM online_sales
+    WHERE order_date IS NOT NULL
+    GROUP BY month_start
+)
+SELECT *
+FROM monthly
+ORDER BY monthly_revenue DESC
+LIMIT 3;
+
+
+-- ==========================================
+-- STEP 5: Filter for Specific Year (example: 2024)
+-- ==========================================
+SELECT
+    EXTRACT(YEAR FROM order_date)  AS year,
+    EXTRACT(MONTH FROM order_date) AS month,
+    SUM(COALESCE(TotalPrice, UnitPrice * Quantity, 0)) AS monthly_revenue,
+    COUNT(DISTINCT OrderID) AS order_volume
+FROM online_sales
+WHERE order_date >= '2024-01-01' AND order_date < '2025-01-01'
+GROUP BY year, month
+ORDER BY year, month;
 
